@@ -6,37 +6,37 @@ const features = [
         title: "Muntlig trening",
         description: "Øv på uttale og flyt med en KI som forstår og svarer naturlig på norsk og andre språk.",
         icon: Mic,
-        color: "text-blue-500",
+        color: "text-[#9ADBE8]", // VLFK Light Blue
     },
     {
         title: "Personlig tilpasning",
         description: "Assistenten tilpasser nivået og temaene basert på elevens behov og fagplanen.",
         icon: Brain,
-        color: "text-purple-500",
+        color: "text-[#CAA2DD]", // VLFK Purple
     },
     {
         title: "Trygt skolemiljø",
         description: "Bygget med personvern i fokus og innholdsfiltrering tilpasset skolehverdagen.",
         icon: Shield,
-        color: "text-green-500",
+        color: "text-[#50A684]", // VLFK Dark Green
     },
     {
         title: "Flere språk",
         description: "Støtte for engelsk, spansk, tysk og fransk for bred språkøving.",
         icon: Languages,
-        color: "text-orange-500",
+        color: "text-[#FF9E1B]", // VLFK Orange
     },
     {
         title: "Eksamensforberedelse",
         description: "Simuler muntlige eksamenssituasjoner for å redusere nervøsitet og øke mestring.",
         icon: GraduationCap,
-        color: "text-red-500",
+        color: "text-[#E06287]", // VLFK Dark Pink
     },
     {
         title: "Umiddelbar respons",
         description: "Få tilbakemeldinger i sanntid uten å måtte vente på lærerens rettelser.",
         icon: Zap,
-        color: "text-yellow-500",
+        color: "text-[#FDDA25]", // VLFK Yellow
     },
 ];
 

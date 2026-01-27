@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
@@ -12,10 +13,16 @@ export function Navbar() {
     return (
         <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-sm border-b supports-[backdrop-filter]:bg-background/60">
             <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                     {/* Logo/Brand */}
-                    <Link href="/" className="text-xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
-                        Hallaien
+                    <Link href="/" className="flex items-center">
+                        <Image
+                            src="/VLFK/VLFK-logo.png"
+                            alt="Vestland fylkeskommune"
+                            width={120}
+                            height={40}
+                            className="h-10 w-auto"
+                        />
                     </Link>
                 </div>
 

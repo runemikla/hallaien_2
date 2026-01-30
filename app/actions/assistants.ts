@@ -11,6 +11,51 @@ export type AssistantFormData = {
     avatar_url?: string
 }
 
+export async function uploadAvatar(formData: FormData): Promise<{ url?: string; error?: string }> {
+    const supabase = await createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+        return { error: 'Ikke innlogget' }
+    }
+
+    const file = formData.get('file') as File
+    if (!file || file.size === 0) {
+        return { error: 'Ingen fil valgt' }
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        return { error: 'Kun bildefiler er tillatt' }
+    }
+
+    // Validate file size (max 1MB)
+    if (file.size > 1 * 1024 * 1024) {
+        return { error: 'Bildet kan ikke være større enn 1MB' }
+    }
+
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${user.id}/${Date.now()}.${fileExt}`
+
+    const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+        })
+
+    if (uploadError) {
+        console.error('Upload error:', uploadError)
+        return { error: 'Kunne ikke laste opp bilde: ' + uploadError.message }
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName)
+
+    return { url: publicUrl }
+}
+
 export async function createAssistant(formData: AssistantFormData) {
     const supabase = await createClient()
 

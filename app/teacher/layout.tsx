@@ -1,9 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { LogOut } from 'lucide-react'
 import Image from 'next/image'
+import { UserMenu } from '@/components/user-menu'
 
 export default async function TeacherLayout({
     children,
@@ -21,7 +20,7 @@ export default async function TeacherLayout({
     // Get profile and verify role
     const { data: profile } = await supabase
         .from('profiles')
-        .select('role, first_name')
+        .select('role, first_name, avatar_url')
         .eq('id', user.id)
         .single()
 
@@ -43,16 +42,11 @@ export default async function TeacherLayout({
                         />
                     </Link>
 
-                    <div className="flex items-center gap-4">
-                        <span className="text-sm text-muted-foreground">
-                            {profile?.first_name || user.email}
-                        </span>
-                        <form action="/auth/logout" method="post">
-                            <Button variant="ghost" size="sm" type="submit">
-                                <LogOut className="w-4 h-4" />
-                            </Button>
-                        </form>
-                    </div>
+                    <UserMenu
+                        email={user.email || ''}
+                        firstName={profile?.first_name}
+                        avatarUrl={profile?.avatar_url}
+                    />
                 </div>
             </header>
             {children}

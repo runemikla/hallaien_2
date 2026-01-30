@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { MessageSquare, KeyRound } from 'lucide-react'
+import { MessageSquare, KeyRound, User } from 'lucide-react'
 
 export default async function StudentDashboard() {
     const supabase = await createClient()
@@ -64,21 +65,38 @@ export default async function StudentDashboard() {
                 {accessRecords && accessRecords.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {accessRecords.map((record) => {
-                            const assistant = record.assistant as { id: string; name: string; description: string | null; avatar_url: string | null } | null
+                            const assistant = record.assistant as unknown as { id: string; name: string; description: string | null; avatar_url: string | null } | null
                             if (!assistant) return null
 
                             const expiresAt = new Date(record.expires_at)
                             const hoursLeft = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)))
 
                             return (
-                                <Card key={record.id} className="hover:shadow-lg transition-shadow">
-                                    <CardHeader>
-                                        <CardTitle className="font-[family-name:var(--font-roboto-slab)]">
-                                            {assistant.name}
-                                        </CardTitle>
-                                        <CardDescription>
-                                            {assistant.description || 'Ingen beskrivelse'}
-                                        </CardDescription>
+                                <Card key={record.id} className="hover:shadow-lg transition-shadow flex flex-col h-full">
+                                    <CardHeader className="flex-1">
+                                        <div className="flex items-start gap-4">
+                                            {/* Avatar */}
+                                            <div className="relative w-14 h-14 rounded-full bg-muted flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                                {assistant.avatar_url ? (
+                                                    <Image
+                                                        src={assistant.avatar_url}
+                                                        alt={assistant.name}
+                                                        fill
+                                                        className="object-cover"
+                                                    />
+                                                ) : (
+                                                    <User className="w-7 h-7 text-muted-foreground" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <CardTitle className="font-[family-name:var(--font-roboto-slab)]">
+                                                    {assistant.name}
+                                                </CardTitle>
+                                                <CardDescription className="line-clamp-2">
+                                                    {assistant.description || 'Ingen beskrivelse'}
+                                                </CardDescription>
+                                            </div>
+                                        </div>
                                     </CardHeader>
                                     <CardContent>
                                         <p className="text-sm text-muted-foreground mb-4">

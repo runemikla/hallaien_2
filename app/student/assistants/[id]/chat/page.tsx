@@ -39,7 +39,7 @@ export default async function StudentChatPage({ params }: PageProps) {
         redirect('/student')
     }
 
-    const assistant = access.assistant as {
+    const assistant = access.assistant as unknown as {
         id: string
         name: string
         elevenlabs_agent_id: string

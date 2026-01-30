@@ -1,25 +1,57 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { createAssistant, uploadAvatar, type AssistantFormData } from '@/app/actions/assistants'
-import { ArrowLeft, Loader2, Upload, User } from 'lucide-react'
+import { updateAssistant, deleteAssistant, uploadAvatar, type AssistantFormData } from '@/app/actions/assistants'
+import { ArrowLeft, Loader2, Trash2, Upload, User } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { createClient } from '@/lib/supabase/client'
 
-export default function NewAssistantPage() {
+type PageProps = {
+    params: Promise<{ id: string }>
+}
+
+export default function EditAssistantPage({ params }: PageProps) {
     const router = useRouter()
+    const [id, setId] = useState<string>('')
+    const [assistant, setAssistant] = useState<any>(null)
     const [isLoading, setIsLoading] = useState(false)
+    const [isDeleting, setIsDeleting] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        params.then(p => {
+            setId(p.id)
+            fetchAssistant(p.id)
+        })
+    }, [params])
+
+    async function fetchAssistant(assistantId: string) {
+        const supabase = createClient()
+        const { data } = await supabase
+            .from('assistants')
+            .select('*')
+            .eq('id', assistantId)
+            .single()
+
+        if (data) {
+            setAssistant(data)
+            if (data.avatar_url) {
+                setAvatarUrl(data.avatar_url)
+                setAvatarPreview(data.avatar_url)
+            }
+        }
+    }
 
     async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0]
@@ -43,7 +75,8 @@ export default function NewAssistantPage() {
 
         if (result.error) {
             setError(result.error)
-            setAvatarPreview(null)
+            // Revert to old preview if upload fails
+            setAvatarPreview(avatarUrl)
         } else if (result.url) {
             setAvatarUrl(result.url)
         }
@@ -57,14 +90,14 @@ export default function NewAssistantPage() {
         setError(null)
 
         const formData = new FormData(e.currentTarget)
-        const data: AssistantFormData = {
+        const data: Partial<AssistantFormData> = {
             name: formData.get('name') as string,
             elevenlabs_agent_id: formData.get('elevenlabs_agent_id') as string,
             description: formData.get('description') as string || undefined,
             avatar_url: avatarUrl || undefined,
         }
 
-        const result = await createAssistant(data)
+        const result = await updateAssistant(id, data)
 
         if (result.error) {
             setError(result.error)
@@ -72,6 +105,23 @@ export default function NewAssistantPage() {
         } else {
             router.push('/teacher')
         }
+    }
+
+    async function handleDelete() {
+        if (!confirm('Er du sikker på at du vil slette denne assistenten?')) {
+            return
+        }
+
+        setIsDeleting(true)
+        await deleteAssistant(id)
+    }
+
+    if (!assistant) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin" />
+            </div>
+        )
     }
 
     return (
@@ -85,10 +135,10 @@ export default function NewAssistantPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="font-[family-name:var(--font-roboto-slab)]">
-                            Ny assistent
+                            Rediger assistent
                         </CardTitle>
                         <CardDescription>
-                            Registrer en ElevenLabs-agent som en assistent i systemet
+                            Oppdater informasjon om assistenten
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -142,6 +192,7 @@ export default function NewAssistantPage() {
                                 <Input
                                     id="name"
                                     name="name"
+                                    defaultValue={assistant.name}
                                     placeholder="F.eks. Norsk muntlig øving"
                                     required
                                 />
@@ -152,6 +203,7 @@ export default function NewAssistantPage() {
                                 <Input
                                     id="elevenlabs_agent_id"
                                     name="elevenlabs_agent_id"
+                                    defaultValue={assistant.elevenlabs_agent_id}
                                     placeholder="F.eks. abc123xyz..."
                                     required
                                 />
@@ -165,6 +217,7 @@ export default function NewAssistantPage() {
                                 <Textarea
                                     id="description"
                                     name="description"
+                                    defaultValue={assistant.description || ''}
                                     placeholder="Beskriv hva denne assistenten gjør..."
                                     rows={3}
                                 />
@@ -174,16 +227,36 @@ export default function NewAssistantPage() {
                                 <p className="text-sm text-destructive">{error}</p>
                             )}
 
-                            <Button type="submit" className="w-full" disabled={isLoading || isUploading}>
-                                {isLoading ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                        Oppretter...
-                                    </>
-                                ) : (
-                                    'Opprett assistent'
-                                )}
-                            </Button>
+                            <div className="flex gap-4">
+                                <Button type="submit" className="flex-1" disabled={isLoading || isDeleting || isUploading}>
+                                    {isLoading ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Lagrer...
+                                        </>
+                                    ) : (
+                                        'Lagre endringer'
+                                    )}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    onClick={handleDelete}
+                                    disabled={isLoading || isDeleting}
+                                >
+                                    {isDeleting ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Sletter...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Trash2 className="w-4 h-4 mr-2" />
+                                            Slett
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
                         </form>
                     </CardContent>
                 </Card>

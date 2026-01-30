@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, MessageSquare, Share2 } from 'lucide-react'
+import { Plus, MessageSquare, Share2, Pencil, User } from 'lucide-react'
 
 export default async function TeacherDashboard() {
     const supabase = await createClient()
@@ -53,29 +54,52 @@ export default async function TeacherDashboard() {
                 </div>
 
                 {assistants && assistants.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {assistants.map((assistant) => (
-                            <Card key={assistant.id} className="hover:shadow-lg transition-shadow">
-                                <CardHeader>
-                                    <CardTitle className="font-[family-name:var(--font-roboto-slab)]">
-                                        {assistant.name}
-                                    </CardTitle>
-                                    <CardDescription>
-                                        {assistant.description || 'Ingen beskrivelse'}
-                                    </CardDescription>
+                            <Card key={assistant.id} className="hover:shadow-lg transition-shadow flex flex-col h-full">
+                                <CardHeader className="flex-1">
+                                    <div className="flex items-start gap-4">
+                                        {/* Avatar */}
+                                        <div className="relative w-14 h-14 rounded-full bg-muted flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                            {assistant.avatar_url ? (
+                                                <Image
+                                                    src={assistant.avatar_url}
+                                                    alt={assistant.name}
+                                                    fill
+                                                    className="object-cover"
+                                                />
+                                            ) : (
+                                                <User className="w-7 h-7 text-muted-foreground" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <CardTitle className="font-[family-name:var(--font-roboto-slab)]">
+                                                {assistant.name}
+                                            </CardTitle>
+                                            <CardDescription className="line-clamp-2">
+                                                {assistant.description || 'Ingen beskrivelse'}
+                                            </CardDescription>
+                                        </div>
+                                    </div>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="flex gap-2">
                                         <Link href={`/teacher/assistants/${assistant.id}/chat`} className="flex-1">
-                                            <Button variant="outline" className="w-full">
-                                                <MessageSquare className="w-4 h-4 mr-2" />
-                                                Snakk
+                                            <Button variant="outline" className="w-full" size="sm">
+                                                <MessageSquare className="w-4 h-4 mr-1" />
+                                                <span className="hidden sm:inline">Snakk</span>
                                             </Button>
                                         </Link>
                                         <Link href={`/teacher/assistants/${assistant.id}/share`} className="flex-1">
-                                            <Button variant="outline" className="w-full">
-                                                <Share2 className="w-4 h-4 mr-2" />
-                                                Del
+                                            <Button variant="outline" className="w-full" size="sm">
+                                                <Share2 className="w-4 h-4 mr-1" />
+                                                <span className="hidden sm:inline">Del</span>
+                                            </Button>
+                                        </Link>
+                                        <Link href={`/teacher/assistants/${assistant.id}/edit`} className="flex-1">
+                                            <Button variant="outline" className="w-full" size="sm">
+                                                <Pencil className="w-4 h-4 mr-1" />
+                                                <span className="hidden sm:inline">Rediger</span>
                                             </Button>
                                         </Link>
                                     </div>

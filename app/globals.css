@@ -1,6 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@layer base {
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -77,11 +85,11 @@
   --secondary-foreground: oklch(0.145 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.85 0.12 85);
-  /* VLFK Lime #E1D555 */
+  --accent: #9ADBE8;
+  /* VLFK Light Blue #9ADBE8 */
   --accent-foreground: oklch(0.145 0 0);
-  --destructive: oklch(0.65 0.22 25);
-  /* VLFK Red-Orange #FF5C39 */
+  --destructive: #E06287;
+  /* VLFK Dark Pink #E06287 */
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.85 0.08 200);

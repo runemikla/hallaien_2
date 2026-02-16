@@ -2,16 +2,20 @@
 
 import { useCallback, useState, useEffect, useRef } from 'react'
 import { useConversation } from '@elevenlabs/react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Mic, MicOff, Phone, PhoneOff, Loader2, Download, Trash2 } from 'lucide-react'
+import { Orb, type AgentState } from '@/components/ui/orb'
+import { User, Phone, PhoneOff, Loader2, Download, Trash2 } from 'lucide-react'
 
 type VoiceChatProps = Readonly<{
     agentId: string
     assistantName: string
+    avatarUrl?: string | null
 }>
 
 type TranscriptEntry = {
+    id: string
     role: 'user' | 'assistant'
     text: string
     timestamp: Date
@@ -74,7 +78,7 @@ function generatePDF(transcript: TranscriptEntry[], assistantName: string) {
     setTimeout(() => URL.revokeObjectURL(url), 60000)
 }
 
-export function VoiceChat({ agentId, assistantName }: VoiceChatProps) {
+export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps) {
     const [isConnecting, setIsConnecting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [transcript, setTranscript] = useState<TranscriptEntry[]>([])
@@ -90,6 +94,7 @@ export function VoiceChat({ agentId, assistantName }: VoiceChatProps) {
     const addTranscriptEntry = useCallback((role: 'user' | 'assistant', text: string) => {
         if (!text.trim()) return
         setTranscript(prev => [...prev, {
+            id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
             role,
             text: text.trim(),
             timestamp: new Date()
@@ -139,27 +144,22 @@ export function VoiceChat({ agentId, assistantName }: VoiceChatProps) {
             // Check by type
             if (msg.type === 'user_transcript' || msg.type === 'user_transcription') {
                 isUser = true
-            } else if (msg.type === 'agent_response') {
-                isUser = false
-            }
-            // Check by source field
-            else if (msg.source === 'user') {
-                isUser = true
-            } else if (msg.source === 'agent' || msg.source === 'assistant') {
-                isUser = false
-            }
-            // Check by role field
-            else if (msg.role === 'user') {
-                isUser = true
-            } else if (msg.role === 'assistant' || msg.role === 'agent') {
-                isUser = false
-            }
-            // Check which field had the content
-            else if (msg.user_transcript || msg.user_transcription) {
-                isUser = true
-            } else {
-                // Default to assistant for unidentified messages
-                isUser = false
+            } else if (msg.type !== 'agent_response') {
+                // Check by source field
+                if (msg.source === 'user') {
+                    isUser = true
+                } else if (msg.source !== 'agent' && msg.source !== 'assistant') {
+                    // Check by role field
+                    if (msg.role === 'user') {
+                        isUser = true
+                    } else if (msg.role !== 'assistant' && msg.role !== 'agent') {
+                        // Check which field had the content
+                        if (msg.user_transcript || msg.user_transcription) {
+                            isUser = true
+                        }
+                        // Default: isUser remains false for unidentified messages
+                    }
+                }
             }
 
             console.log('Adding transcript as:', isUser ? 'USER' : 'ASSISTANT', '- Text:', text.substring(0, 50))
@@ -224,24 +224,65 @@ export function VoiceChat({ agentId, assistantName }: VoiceChatProps) {
     const isConnected = conversation.status === 'connected'
     const isSpeaking = conversation.isSpeaking
 
+    // Map conversation state to AgentState for Orb
+    const getAgentState = (): AgentState => {
+        if (!isConnected) return null
+        if (isSpeaking) return "talking"
+        return "listening"
+    }
+
+    // Get audio volume levels from conversation for Orb reactivity
+    // These functions are called on every animation frame by the Orb component
+    const getInputVolume = () => {
+        return conversation.getInputVolume?.() ?? 0
+    }
+
+    const getOutputVolume = () => {
+        return conversation.getOutputVolume?.() ?? 0
+    }
+
     return (
         <div className="space-y-4">
+            {/* Voice Chat Section with Orb */}
             <Card className="overflow-hidden">
                 <CardContent className="p-0">
-                    <div className="bg-gradient-to-br from-primary/10 to-secondary/10 p-8 text-center">
-                        <div className="w-24 h-24 mx-auto bg-primary/20 rounded-full flex items-center justify-center mb-4">
-                            {isConnected ? (
-                                <div className={`w-16 h-16 bg-primary rounded-full ${isSpeaking ? 'animate-pulse' : ''}`} />
-                            ) : (
-                                <Mic className="w-10 h-10 text-primary" />
-                            )}
+                    {/* Using VLFK Light Blue #9ADBE8 as background */}
+                    <div className="bg-[#9ADBE8]/20 p-8 text-center">
+                        {/* Orb Container */}
+                        <div className="relative w-32 h-32 mx-auto mb-4">
+                            <div className="absolute inset-0 bg-[#9ADBE8]/40 rounded-full shadow-[inset_0_2px_8px_rgba(0,0,0,0.1)]" />
+                            <div className="absolute inset-2 bg-white rounded-full overflow-hidden shadow-[inset_0_0_12px_rgba(0,0,0,0.05)]">
+                                {isConnected ? (
+                                    <Orb
+                                        colors={["#9ADBE8", "#7BCCD9"]}
+                                        agentState={getAgentState()}
+                                        volumeMode="manual"
+                                        getInputVolume={getInputVolume}
+                                        getOutputVolume={getOutputVolume}
+                                        className="h-full w-full"
+                                    />
+                                ) : (
+                                    <div className="h-full w-full flex items-center justify-center">
+                                        {avatarUrl ? (
+                                            <Image
+                                                src={avatarUrl}
+                                                alt={assistantName}
+                                                fill
+                                                className="object-cover"
+                                            />
+                                        ) : (
+                                            <User className="w-10 h-10 text-[#9ADBE8]" />
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <h2 className="text-xl font-bold font-[family-name:var(--font-roboto-slab)] mb-2">
                             {assistantName}
                         </h2>
 
-                        <p className="text-sm text-muted-foreground mb-2">
+                        <p className="text-sm text-muted-foreground mb-6">
                             {isConnecting && 'Kobler til...'}
                             {isConnected && !isSpeaking && 'Lytter...'}
                             {isConnected && isSpeaking && 'Assistenten snakker...'}
@@ -252,36 +293,23 @@ export function VoiceChat({ agentId, assistantName }: VoiceChatProps) {
                             <p className="text-sm text-destructive mb-4">{error}</p>
                         )}
 
-                        <div className="flex justify-center gap-4">
+                        {/* Call Button - using standard Button styles like dashboard */}
+                        <div className="flex justify-center">
                             {isConnected ? (
-                                <>
-                                    <Button
-                                        size="lg"
-                                        variant="outline"
-                                        className="rounded-full h-16 w-16"
-                                        disabled={isSpeaking}
-                                    >
-                                        {isSpeaking ? (
-                                            <MicOff className="w-6 h-6" />
-                                        ) : (
-                                            <Mic className="w-6 h-6" />
-                                        )}
-                                    </Button>
-                                    <Button
-                                        size="lg"
-                                        variant="destructive"
-                                        onClick={endConversation}
-                                        className="rounded-full h-16 w-16"
-                                    >
-                                        <PhoneOff className="w-6 h-6" />
-                                    </Button>
-                                </>
+                                <Button
+                                    size="lg"
+                                    variant="destructive"
+                                    onClick={endConversation}
+                                    className="rounded-full h-14 w-14"
+                                >
+                                    <PhoneOff className="w-6 h-6" />
+                                </Button>
                             ) : (
                                 <Button
                                     size="lg"
                                     onClick={startConversation}
                                     disabled={isConnecting}
-                                    className="rounded-full h-16 w-16"
+                                    className="rounded-full h-14 w-14"
                                 >
                                     {isConnecting ? (
                                         <Loader2 className="w-6 h-6 animate-spin" />
@@ -296,46 +324,53 @@ export function VoiceChat({ agentId, assistantName }: VoiceChatProps) {
             </Card>
 
             {/* Transcript Section */}
-            {transcript.length > 0 && (
-                <Card>
-                    <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold font-[family-name:var(--font-roboto-slab)]">
-                                Transkripsjon
-                            </h3>
-                            <div className="flex gap-2">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={clearTranscript}
-                                >
-                                    <Trash2 className="w-4 h-4 mr-1" />
-                                    Tøm
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    onClick={handleDownloadPDF}
-                                >
-                                    <Download className="w-4 h-4 mr-1" />
-                                    Last ned PDF
-                                </Button>
-                            </div>
+            <Card>
+                <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold font-[family-name:var(--font-roboto-slab)]">
+                            Transkripsjon
+                        </h3>
+                        <div className="flex gap-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={clearTranscript}
+                                disabled={transcript.length === 0}
+                            >
+                                <Trash2 className="w-4 h-4 mr-1" />
+                                Tøm
+                            </Button>
+                            <Button
+                                size="sm"
+                                onClick={handleDownloadPDF}
+                                disabled={transcript.length === 0}
+                            >
+                                <Download className="w-4 h-4 mr-1" />
+                                Last ned PDF
+                            </Button>
                         </div>
+                    </div>
 
+                    {transcript.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-8">
+                            Transkripsjon vil vises her når samtalen starter.
+                        </p>
+                    ) : (
                         <div
                             ref={transcriptRef}
-                            className="max-h-64 overflow-y-auto space-y-3 text-sm"
+                            className="max-h-80 overflow-y-auto space-y-3"
                         >
-                            {transcript.map((entry, index) => (
+                            {transcript.map((entry) => (
                                 <div
-                                    key={index}
-                                    className={`p-3 rounded-lg ${entry.role === 'user'
-                                        ? 'bg-primary/10 border-l-4 border-primary'
-                                        : 'bg-muted border-l-4 border-muted-foreground'
-                                        }`}
+                                    key={entry.id}
+                                    className={`p-4 rounded-lg border-l-4 ${
+                                        entry.role === 'user'
+                                            ? 'bg-[#FDDA25]/10 border-[#FDDA25]'
+                                            : 'bg-muted border-muted-foreground/30'
+                                    }`}
                                 >
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="font-medium">
+                                        <span className="font-semibold text-sm">
                                             {entry.role === 'user' ? 'Elev' : 'Assistent'}
                                         </span>
                                         <span className="text-xs text-muted-foreground">
@@ -345,16 +380,13 @@ export function VoiceChat({ agentId, assistantName }: VoiceChatProps) {
                                             })}
                                         </span>
                                     </div>
-                                    <p className="text-muted-foreground">{entry.text}</p>
+                                    <p className="text-sm text-muted-foreground">{entry.text}</p>
                                 </div>
                             ))}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-4 pt-3 border-t">
-                            ℹ️ Samtalen lagres kun lokalt i nettleseren og slettes automatisk når du forlater siden.
-                        </p>
-                    </CardContent>
-                </Card>
-            )}
+                    )}
+                </CardContent>
+            </Card>
         </div>
     )
 }

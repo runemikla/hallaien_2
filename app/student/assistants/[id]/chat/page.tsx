@@ -27,7 +27,8 @@ export default async function StudentChatPage({ params }: PageProps) {
       assistant:assistants(
         id,
         name,
-        elevenlabs_agent_id
+        elevenlabs_agent_id,
+        avatar_url
       )
     `)
         .eq('student_id', user.id)
@@ -43,6 +44,7 @@ export default async function StudentChatPage({ params }: PageProps) {
         id: string
         name: string
         elevenlabs_agent_id: string
+        avatar_url: string | null
     }
 
     return (
@@ -56,6 +58,7 @@ export default async function StudentChatPage({ params }: PageProps) {
                 <VoiceChat
                     agentId={assistant.elevenlabs_agent_id}
                     assistantName={assistant.name}
+                    avatarUrl={assistant.avatar_url}
                 />
             </div>
         </div>

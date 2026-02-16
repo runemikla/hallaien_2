@@ -42,7 +42,7 @@ export default async function TeacherDashboard() {
                             Hei, {profile?.first_name || 'Lærer'}!
                         </h1>
                         <p className="text-muted-foreground mt-1">
-                            Administrer dine KI-assistenter
+                            Her er dine KI-assistenter:
                         </p>
                     </div>
                     <Link href="/teacher/assistants/new">

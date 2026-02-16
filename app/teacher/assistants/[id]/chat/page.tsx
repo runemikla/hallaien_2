@@ -41,6 +41,7 @@ export default async function TeacherChatPage({ params }: PageProps) {
                 <VoiceChat
                     agentId={assistant.elevenlabs_agent_id}
                     assistantName={assistant.name}
+                    avatarUrl={assistant.avatar_url}
                 />
             </div>
         </div>

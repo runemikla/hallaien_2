@@ -7,7 +7,7 @@ export function Footer() {
             <div className="container mx-auto px-4 py-12 md:py-24">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
                     <div className="md:col-span-2 space-y-4">
-                        <h3 className="text-xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+                        <h3 className="text-xl font-bold font-[family-name:var(--font-roboto-slab)] bg-gradient-to-r from-[#9ADBE8] to-[#3CDBC0] bg-clip-text text-transparent">
                             Hallaien
                         </h3>
                         <p className="text-muted-foreground max-w-xs">

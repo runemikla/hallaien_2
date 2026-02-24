@@ -9,6 +9,7 @@ export type AssistantFormData = {
     elevenlabs_agent_id: string
     description?: string
     avatar_url?: string
+    utdanningsprogram_ids?: string[]
 }
 
 export async function uploadAvatar(formData: FormData): Promise<{ url?: string; error?: string }> {
@@ -56,6 +57,21 @@ export async function uploadAvatar(formData: FormData): Promise<{ url?: string; 
     return { url: publicUrl }
 }
 
+export async function getUtdanningsprogram() {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+        .from('utdanningsprogram_table')
+        .select('id, code, name')
+        .order('code')
+
+    if (error) {
+        return { error: error.message, programs: [] }
+    }
+
+    return { programs: data }
+}
+
 export async function createAssistant(formData: AssistantFormData) {
     const supabase = await createClient()
 
@@ -71,7 +87,7 @@ export async function createAssistant(formData: AssistantFormData) {
         .eq('id', user.id)
         .single()
 
-    if (profile?.role !== 'teacher') {
+    if (profile?.role !== 'teacher' && profile?.role !== 'admin') {
         return { error: 'Bare lærere kan opprette assistenter' }
     }
 
@@ -89,6 +105,22 @@ export async function createAssistant(formData: AssistantFormData) {
 
     if (error) {
         return { error: error.message }
+    }
+
+    // Insert utdanningsprogram links
+    if (formData.utdanningsprogram_ids && formData.utdanningsprogram_ids.length > 0) {
+        const links = formData.utdanningsprogram_ids.map(programId => ({
+            assistant_id: data.id,
+            utdanningsprogram_id: programId,
+        }))
+
+        const { error: linkError } = await supabase
+            .from('assistant_utdanningsprogram')
+            .insert(links)
+
+        if (linkError) {
+            console.error('Error linking utdanningsprogram:', linkError)
+        }
     }
 
     revalidatePath('/teacher')
@@ -118,6 +150,29 @@ export async function updateAssistant(id: string, formData: Partial<AssistantFor
 
     if (error) {
         return { error: error.message }
+    }
+
+    // Update utdanningsprogram links: delete all, re-insert
+    if (formData.utdanningsprogram_ids !== undefined) {
+        await supabase
+            .from('assistant_utdanningsprogram')
+            .delete()
+            .eq('assistant_id', id)
+
+        if (formData.utdanningsprogram_ids.length > 0) {
+            const links = formData.utdanningsprogram_ids.map(programId => ({
+                assistant_id: id,
+                utdanningsprogram_id: programId,
+            }))
+
+            const { error: linkError } = await supabase
+                .from('assistant_utdanningsprogram')
+                .insert(links)
+
+            if (linkError) {
+                console.error('Error updating utdanningsprogram links:', linkError)
+            }
+        }
     }
 
     revalidatePath('/teacher')
@@ -166,4 +221,19 @@ export async function getMyAssistants() {
     }
 
     return { assistants: data }
+}
+
+export async function getAssistantUtdanningsprogram(assistantId: string) {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+        .from('assistant_utdanningsprogram')
+        .select('utdanningsprogram_id')
+        .eq('assistant_id', assistantId)
+
+    if (error) {
+        return { error: error.message, programIds: [] }
+    }
+
+    return { programIds: data.map(d => d.utdanningsprogram_id) }
 }

@@ -1,16 +1,19 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { createAssistant, uploadAvatar, type AssistantFormData } from '@/app/actions/assistants'
+import { createAssistant, uploadAvatar, getUtdanningsprogram, type AssistantFormData } from '@/app/actions/assistants'
 import { ArrowLeft, Loader2, Upload, User } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+
+type Program = { id: string; code: string; name: string }
 
 export default function NewAssistantPage() {
     const router = useRouter()
@@ -19,7 +22,27 @@ export default function NewAssistantPage() {
     const [error, setError] = useState<string | null>(null)
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+    const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([])
+    const [programs, setPrograms] = useState<Program[]>([])
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        async function loadPrograms() {
+            const result = await getUtdanningsprogram()
+            if (result.programs) {
+                setPrograms(result.programs)
+            }
+        }
+        loadPrograms()
+    }, [])
+
+    function toggleProgram(id: string) {
+        setSelectedProgramIds(prev =>
+            prev.includes(id)
+                ? prev.filter(p => p !== id)
+                : [...prev, id]
+        )
+    }
 
     async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0]
@@ -62,6 +85,7 @@ export default function NewAssistantPage() {
             elevenlabs_agent_id: formData.get('elevenlabs_agent_id') as string,
             description: formData.get('description') as string || undefined,
             avatar_url: avatarUrl || undefined,
+            utdanningsprogram_ids: selectedProgramIds,
         }
 
         const result = await createAssistant(data)
@@ -168,6 +192,31 @@ export default function NewAssistantPage() {
                                     placeholder="Beskriv hva denne assistenten gjør..."
                                     rows={3}
                                 />
+                            </div>
+
+                            {/* Utdanningsprogram */}
+                            <div className="space-y-3">
+                                <Label>Utdanningsprogram</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Velg hvilke utdanningsprogram denne assistenten skal være tilgjengelig for
+                                </p>
+                                <div className="flex flex-col gap-3">
+                                    {programs.map((program) => (
+                                        <div key={program.id} className="flex items-center gap-2">
+                                            <Checkbox
+                                                id={`program-${program.id}`}
+                                                checked={selectedProgramIds.includes(program.id)}
+                                                onCheckedChange={() => toggleProgram(program.id)}
+                                            />
+                                            <Label
+                                                htmlFor={`program-${program.id}`}
+                                                className="text-sm font-normal cursor-pointer"
+                                            >
+                                                {program.code} — {program.name}
+                                            </Label>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
 
                             {error && (

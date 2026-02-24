@@ -18,8 +18,8 @@ export default async function StudentChatPage({ params }: PageProps) {
         redirect('/auth/login')
     }
 
-    // Verify student has access to this assistant
-    const { data: access } = await supabase
+    // Check access via share code (time-limited)
+    const { data: shareAccess } = await supabase
         .from('student_access')
         .select(`
       id,
@@ -36,15 +36,49 @@ export default async function StudentChatPage({ params }: PageProps) {
         .gt('expires_at', new Date().toISOString())
         .single()
 
-    if (!access || !access.assistant) {
-        redirect('/student')
-    }
-
-    const assistant = access.assistant as unknown as {
+    let assistant: {
         id: string
         name: string
         elevenlabs_agent_id: string
         avatar_url: string | null
+    } | null = null
+
+    if (shareAccess?.assistant) {
+        assistant = shareAccess.assistant as unknown as typeof assistant
+    }
+
+    // If no share code access, check via utdanningsprogram
+    if (!assistant) {
+        const { data: programAccess } = await supabase
+            .from('assistant_utdanningsprogram')
+            .select(`
+          utdanningsprogram_id,
+          assistant:assistants(
+            id,
+            name,
+            elevenlabs_agent_id,
+            avatar_url
+          )
+        `)
+            .eq('assistant_id', id)
+            .in(
+                'utdanningsprogram_id',
+                (await supabase
+                    .from('profile_utdanningsprogram')
+                    .select('utdanningsprogram_id')
+                    .eq('profile_id', user.id)
+                ).data?.map(p => p.utdanningsprogram_id) || []
+            )
+            .limit(1)
+            .single()
+
+        if (programAccess?.assistant) {
+            assistant = programAccess.assistant as unknown as typeof assistant
+        }
+    }
+
+    if (!assistant) {
+        redirect('/student')
     }
 
     return (

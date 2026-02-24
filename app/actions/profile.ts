@@ -111,3 +111,33 @@ export async function getProfile() {
 
     return { profile, email: user.email }
 }
+
+export async function getProfileUtdanningsprogram() {
+    const supabase = await createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+        return { error: 'Ikke innlogget', programs: [] }
+    }
+
+    const { data, error } = await supabase
+        .from('profile_utdanningsprogram')
+        .select(`
+            utdanningsprogram:utdanningsprogram_table(
+                id,
+                code,
+                name
+            )
+        `)
+        .eq('profile_id', user.id)
+
+    if (error) {
+        return { error: error.message, programs: [] }
+    }
+
+    const programs = (data || [])
+        .map(d => d.utdanningsprogram as unknown as { id: string; code: string; name: string })
+        .filter(Boolean)
+
+    return { programs }
+}

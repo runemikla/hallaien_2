@@ -6,12 +6,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { updateAssistant, deleteAssistant, uploadAvatar, type AssistantFormData } from '@/app/actions/assistants'
+import { updateAssistant, deleteAssistant, uploadAvatar, getUtdanningsprogram, getAssistantUtdanningsprogram, type AssistantFormData } from '@/app/actions/assistants'
 import { ArrowLeft, Loader2, Trash2, Upload, User } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
+
+type Program = { id: string; code: string; name: string }
 
 type PageProps = {
     params: Promise<{ id: string }>
@@ -27,14 +30,38 @@ export default function EditAssistantPage({ params }: PageProps) {
     const [error, setError] = useState<string | null>(null)
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+    const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([])
+    const [programs, setPrograms] = useState<Program[]>([])
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    function toggleProgram(programId: string) {
+        setSelectedProgramIds(prev =>
+            prev.includes(programId)
+                ? prev.filter(p => p !== programId)
+                : [...prev, programId]
+        )
+    }
 
     useEffect(() => {
         params.then(p => {
             setId(p.id)
             fetchAssistant(p.id)
+            loadPrograms(p.id)
         })
     }, [params])
+
+    async function loadPrograms(assistantId: string) {
+        const [programsResult, selectedResult] = await Promise.all([
+            getUtdanningsprogram(),
+            getAssistantUtdanningsprogram(assistantId),
+        ])
+        if (programsResult.programs) {
+            setPrograms(programsResult.programs)
+        }
+        if (selectedResult.programIds) {
+            setSelectedProgramIds(selectedResult.programIds)
+        }
+    }
 
     async function fetchAssistant(assistantId: string) {
         const supabase = createClient()
@@ -95,6 +122,7 @@ export default function EditAssistantPage({ params }: PageProps) {
             elevenlabs_agent_id: formData.get('elevenlabs_agent_id') as string,
             description: formData.get('description') as string || undefined,
             avatar_url: avatarUrl || undefined,
+            utdanningsprogram_ids: selectedProgramIds,
         }
 
         const result = await updateAssistant(id, data)
@@ -221,6 +249,31 @@ export default function EditAssistantPage({ params }: PageProps) {
                                     placeholder="Beskriv hva denne assistenten gjør..."
                                     rows={3}
                                 />
+                            </div>
+
+                            {/* Utdanningsprogram */}
+                            <div className="space-y-3">
+                                <Label>Utdanningsprogram</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Velg hvilke utdanningsprogram denne assistenten skal være tilgjengelig for
+                                </p>
+                                <div className="flex flex-col gap-3">
+                                    {programs.map((program) => (
+                                        <div key={program.id} className="flex items-center gap-2">
+                                            <Checkbox
+                                                id={`program-${program.id}`}
+                                                checked={selectedProgramIds.includes(program.id)}
+                                                onCheckedChange={() => toggleProgram(program.id)}
+                                            />
+                                            <Label
+                                                htmlFor={`program-${program.id}`}
+                                                className="text-sm font-normal cursor-pointer"
+                                            >
+                                                {program.code} — {program.name}
+                                            </Label>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
 
                             {error && (

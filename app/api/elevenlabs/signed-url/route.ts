@@ -38,17 +38,50 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: 'Access denied' }, { status: 403 })
             }
         } else {
-            // Student - check access
-            const { data: access } = await supabase
+            // Student - check access via share codes OR utdanningsprogram
+            let hasAccess = false
+
+            // Check share code access
+            const { data: shareAccess } = await supabase
                 .from('student_access')
                 .select('id, assistant:assistants(elevenlabs_agent_id)')
                 .eq('student_id', user.id)
                 .gt('expires_at', new Date().toISOString())
 
-            const hasAccess = access?.some((a) => {
+            hasAccess = shareAccess?.some((a) => {
                 const assistant = a.assistant as unknown as { elevenlabs_agent_id: string } | null
                 return assistant?.elevenlabs_agent_id === agentId
-            })
+            }) ?? false
+
+            // If no share code access, check utdanningsprogram access
+            if (!hasAccess) {
+                const { data: userPrograms } = await supabase
+                    .from('profile_utdanningsprogram')
+                    .select('utdanningsprogram_id')
+                    .eq('profile_id', user.id)
+
+                const programIds = userPrograms?.map(p => p.utdanningsprogram_id) || []
+
+                if (programIds.length > 0) {
+                    // Find the assistant by agent ID, then check if it shares a program
+                    const { data: matchingAssistant } = await supabase
+                        .from('assistants')
+                        .select('id')
+                        .eq('elevenlabs_agent_id', agentId)
+                        .single()
+
+                    if (matchingAssistant) {
+                        const { data: programMatch } = await supabase
+                            .from('assistant_utdanningsprogram')
+                            .select('assistant_id')
+                            .eq('assistant_id', matchingAssistant.id)
+                            .in('utdanningsprogram_id', programIds)
+                            .limit(1)
+
+                        hasAccess = (programMatch?.length ?? 0) > 0
+                    }
+                }
+            }
 
             if (!hasAccess) {
                 return NextResponse.json({ error: 'Access denied' }, { status: 403 })

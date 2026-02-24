@@ -26,7 +26,7 @@ export default async function StudentDashboard() {
         redirect('/teacher')
     }
 
-    // Get student's accessible assistants (via student_access table)
+    // Get student's accessible assistants via share codes (time-limited)
     const { data: accessRecords } = await supabase
         .from('student_access')
         .select(`
@@ -41,6 +41,62 @@ export default async function StudentDashboard() {
     `)
         .eq('student_id', user.id)
         .gt('expires_at', new Date().toISOString())
+
+    // Get student's accessible assistants via utdanningsprogram (permanent)
+    const { data: programAssistants } = await supabase
+        .from('assistant_utdanningsprogram')
+        .select(`
+      assistant:assistants(
+        id,
+        name,
+        description,
+        avatar_url
+      )
+    `)
+        .in(
+            'utdanningsprogram_id',
+            (await supabase
+                .from('profile_utdanningsprogram')
+                .select('utdanningsprogram_id')
+                .eq('profile_id', user.id)
+            ).data?.map(p => p.utdanningsprogram_id) || []
+        )
+
+    // Combine and deduplicate
+    type AssistantInfo = { id: string; name: string; description: string | null; avatar_url: string | null }
+
+    const shareCodeAssistants = (accessRecords || [])
+        .map(record => ({
+            assistant: record.assistant as unknown as AssistantInfo | null,
+            expiresAt: record.expires_at,
+            source: 'share_code' as const,
+        }))
+        .filter(r => r.assistant !== null)
+
+    const programBasedAssistants = (programAssistants || [])
+        .map(record => ({
+            assistant: record.assistant as unknown as AssistantInfo | null,
+            expiresAt: null,
+            source: 'program' as const,
+        }))
+        .filter(r => r.assistant !== null)
+
+    // Deduplicate: prefer share_code entry if exists (has expiry info)
+    const seenIds = new Set<string>()
+    const allAssistants: { assistant: AssistantInfo; expiresAt: string | null; source: 'share_code' | 'program' }[] = []
+
+    for (const entry of shareCodeAssistants) {
+        if (entry.assistant && !seenIds.has(entry.assistant.id)) {
+            seenIds.add(entry.assistant.id)
+            allAssistants.push(entry as { assistant: AssistantInfo; expiresAt: string | null; source: 'share_code' | 'program' })
+        }
+    }
+    for (const entry of programBasedAssistants) {
+        if (entry.assistant && !seenIds.has(entry.assistant.id)) {
+            seenIds.add(entry.assistant.id)
+            allAssistants.push(entry as { assistant: AssistantInfo; expiresAt: string | null; source: 'share_code' | 'program' })
+        }
+    }
 
     return (
         <div className="min-h-screen bg-background">
@@ -62,17 +118,16 @@ export default async function StudentDashboard() {
                     </Link>
                 </div>
 
-                {accessRecords && accessRecords.length > 0 ? (
+                {allAssistants.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {accessRecords.map((record) => {
-                            const assistant = record.assistant as unknown as { id: string; name: string; description: string | null; avatar_url: string | null } | null
-                            if (!assistant) return null
-
-                            const expiresAt = new Date(record.expires_at)
-                            const hoursLeft = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)))
+                        {allAssistants.map((entry) => {
+                            const assistant = entry.assistant
+                            const hoursLeft = entry.expiresAt
+                                ? Math.max(0, Math.round((new Date(entry.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60)))
+                                : null
 
                             return (
-                                <Card key={record.id} className="hover:shadow-lg transition-shadow flex flex-col h-full">
+                                <Card key={assistant.id} className="hover:shadow-lg transition-shadow flex flex-col h-full">
                                     <CardHeader className="flex-1">
                                         <div className="flex items-start gap-4">
                                             {/* Avatar */}
@@ -100,7 +155,9 @@ export default async function StudentDashboard() {
                                     </CardHeader>
                                     <CardContent>
                                         <p className="text-sm text-muted-foreground mb-4">
-                                            Tilgang utløper om {hoursLeft} timer
+                                            {entry.source === 'share_code'
+                                                ? `Tilgang utløper om ${hoursLeft} timer`
+                                                : 'Tilgjengelig via ditt utdanningsprogram'}
                                         </p>
                                         <Link href={`/student/assistants/${assistant.id}/chat`}>
                                             <Button className="w-full">

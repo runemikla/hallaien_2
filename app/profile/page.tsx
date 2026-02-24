@@ -7,14 +7,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { User, Upload, Loader2, ArrowLeft, Check } from 'lucide-react'
-import { uploadProfileAvatar, updateProfile, getProfile } from '@/app/actions/profile'
+import { User, Upload, Loader2, ArrowLeft, Check, Shield, GraduationCap } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { uploadProfileAvatar, updateProfile, getProfile, getProfileUtdanningsprogram } from '@/app/actions/profile'
 import Link from 'next/link'
 
 export default function ProfilePage() {
     const router = useRouter()
     const [firstName, setFirstName] = useState('')
     const [email, setEmail] = useState('')
+    const [role, setRole] = useState<string>('')
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
     const [isUploading, setIsUploading] = useState(false)
@@ -22,6 +24,7 @@ export default function ProfilePage() {
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
+    const [programs, setPrograms] = useState<{ id: string; code: string; name: string }[]>([])
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
@@ -34,6 +37,7 @@ export default function ProfilePage() {
             }
             if (result.profile) {
                 setFirstName(result.profile.first_name || '')
+                setRole(result.profile.role || 'student')
                 setAvatarUrl(result.profile.avatar_url)
                 setAvatarPreview(result.profile.avatar_url)
             }
@@ -43,6 +47,12 @@ export default function ProfilePage() {
             setIsLoading(false)
         }
         loadProfile()
+
+        async function loadPrograms() {
+            const result = await getProfileUtdanningsprogram()
+            if (result.programs) setPrograms(result.programs)
+        }
+        loadPrograms()
     }, [])
 
     const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,10 +108,12 @@ export default function ProfilePage() {
         )
     }
 
+    const canEdit = role === 'teacher' || role === 'admin'
+
     return (
         <div className="min-h-screen bg-background">
             <div className="container mx-auto px-4 py-8 max-w-2xl">
-                <Link href="/teacher" className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
+                <Link href={canEdit ? '/teacher' : '/student'} className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Tilbake til oversikt
                 </Link>
@@ -112,18 +124,18 @@ export default function ProfilePage() {
                             Min profil
                         </CardTitle>
                         <CardDescription>
-                            Oppdater profilbildet og navnet ditt
+                            {canEdit ? 'Oppdater profilbildet og navnet ditt' : 'Se informasjonen din'}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {/* Avatar Upload */}
+                        {/* Avatar */}
                         <div className="flex flex-col items-center space-y-4">
                             <div
-                                className="relative w-32 h-32 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 border-dashed border-muted-foreground/25 cursor-pointer hover:border-primary transition-colors"
-                                onClick={() => fileInputRef.current?.click()}
-                                role="button"
-                                tabIndex={0}
-                                onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
+                                className={`relative w-32 h-32 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 ${canEdit ? 'border-dashed border-muted-foreground/25 cursor-pointer hover:border-primary transition-colors' : 'border-muted-foreground/10'}`}
+                                onClick={canEdit ? () => fileInputRef.current?.click() : undefined}
+                                role={canEdit ? 'button' : undefined}
+                                tabIndex={canEdit ? 0 : undefined}
+                                onKeyDown={canEdit ? (e) => e.key === 'Enter' && fileInputRef.current?.click() : undefined}
                             >
                                 {avatarPreview ? (
                                     <Image
@@ -141,26 +153,30 @@ export default function ProfilePage() {
                                     </div>
                                 )}
                             </div>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                onChange={handleAvatarChange}
-                                className="hidden"
-                            />
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isUploading}
-                            >
-                                <Upload className="w-4 h-4 mr-2" />
-                                {avatarPreview ? 'Bytt bilde' : 'Last opp bilde'}
-                            </Button>
-                            <p className="text-xs text-muted-foreground">
-                                Maks 1MB. JPG, PNG eller GIF.
-                            </p>
+                            {canEdit && (
+                                <>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleAvatarChange}
+                                        className="hidden"
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isUploading}
+                                    >
+                                        <Upload className="w-4 h-4 mr-2" />
+                                        {avatarPreview ? 'Bytt bilde' : 'Last opp bilde'}
+                                    </Button>
+                                    <p className="text-xs text-muted-foreground">
+                                        Maks 1MB. JPG, PNG eller GIF.
+                                    </p>
+                                </>
+                            )}
                         </div>
 
                         {/* Name Field */}
@@ -171,6 +187,8 @@ export default function ProfilePage() {
                                 placeholder="Ditt navn"
                                 value={firstName}
                                 onChange={(e) => setFirstName(e.target.value)}
+                                disabled={!canEdit}
+                                className={!canEdit ? 'bg-muted' : ''}
                             />
                         </div>
 
@@ -188,6 +206,30 @@ export default function ProfilePage() {
                             </p>
                         </div>
 
+                        {/* Role (read-only) */}
+                        <div className="space-y-2">
+                            <Label>Rolle</Label>
+                            <div className="flex items-center gap-2">
+                                <Shield className="w-4 h-4 text-muted-foreground" />
+                                <Badge variant={role === 'teacher' ? 'default' : role === 'admin' ? 'default' : 'secondary'}>
+                                    {role === 'teacher' ? 'Lærer' : role === 'admin' ? 'Admin' : 'Elev'}
+                                </Badge>
+                            </div>
+                        </div>
+
+                        {/* Utdanningsprogram */}
+                        {programs.length > 0 && (
+                            <div className="space-y-2">
+                                <Label>Utdanningsprogram</Label>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <GraduationCap className="w-4 h-4 text-muted-foreground" />
+                                    {programs.map(p => (
+                                        <Badge key={p.id} variant="outline">{p.code}</Badge>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {error && (
                             <p className="text-sm text-destructive">{error}</p>
                         )}
@@ -199,20 +241,22 @@ export default function ProfilePage() {
                             </p>
                         )}
 
-                        <Button
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            className="w-full"
-                        >
-                            {isSaving ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    Lagrer...
-                                </>
-                            ) : (
-                                'Lagre endringer'
-                            )}
-                        </Button>
+                        {canEdit && (
+                            <Button
+                                onClick={handleSave}
+                                disabled={isSaving}
+                                className="w-full"
+                            >
+                                {isSaving ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Lagrer...
+                                    </>
+                                ) : (
+                                    'Lagre endringer'
+                                )}
+                            </Button>
+                        )}
                     </CardContent>
                 </Card>
             </div>

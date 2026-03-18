@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Orb, type AgentState } from '@/components/ui/orb'
-import { User, Phone, PhoneOff, Loader2, Download, Trash2 } from 'lucide-react'
+import { User, Phone, PhoneOff, Loader2, Download, Trash2, Mic, MicOff } from 'lucide-react'
 
 type VoiceChatProps = Readonly<{
     agentId: string
@@ -82,6 +82,7 @@ export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps)
     const [isConnecting, setIsConnecting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [transcript, setTranscript] = useState<TranscriptEntry[]>([])
+    const [isMuted, setIsMuted] = useState(false)
     const transcriptRef = useRef<HTMLDivElement>(null)
 
     // Auto-scroll transcript
@@ -102,9 +103,11 @@ export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps)
     }, [])
 
     const conversation = useConversation({
+        micMuted: isMuted,
         onConnect: () => {
             console.log('Connected to ElevenLabs')
             setIsConnecting(false)
+            setIsMuted(false)
             setTranscript([]) // Clear transcript on new conversation
         },
         onDisconnect: () => {
@@ -212,6 +215,10 @@ export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps)
         await conversation.endSession()
     }, [conversation])
 
+    const toggleMute = useCallback(() => {
+        setIsMuted(prev => !prev)
+    }, [])
+
     const handleDownloadPDF = useCallback(() => {
         if (transcript.length === 0) return
         generatePDF(transcript, assistantName)
@@ -284,8 +291,9 @@ export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps)
 
                         <p className="text-sm text-muted-foreground mb-6">
                             {isConnecting && 'Kobler til...'}
-                            {isConnected && !isSpeaking && 'Lytter...'}
-                            {isConnected && isSpeaking && 'Assistenten snakker...'}
+                            {isConnected && isMuted && 'Mikrofon dempet'}
+                            {isConnected && !isMuted && !isSpeaking && 'Lytter...'}
+                            {isConnected && !isMuted && isSpeaking && 'Assistenten snakker...'}
                             {!isConnecting && !isConnected && 'Trykk på knappen for å starte samtale'}
                         </p>
 
@@ -294,16 +302,35 @@ export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps)
                         )}
 
                         {/* Call Button - using standard Button styles like dashboard */}
-                        <div className="flex justify-center">
+                        <div className="flex justify-center gap-4">
                             {isConnected ? (
-                                <Button
-                                    size="lg"
-                                    variant="destructive"
-                                    onClick={endConversation}
-                                    className="rounded-full h-14 w-14"
-                                >
-                                    <PhoneOff className="w-6 h-6" />
-                                </Button>
+                                <>
+                                    <Button
+                                        size="lg"
+                                        variant={isMuted ? "default" : "outline"}
+                                        onClick={toggleMute}
+                                        className={`rounded-full h-14 w-14 transition-colors ${
+                                            isMuted
+                                                ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-500'
+                                                : 'hover:bg-muted'
+                                        }`}
+                                        title={isMuted ? 'Slå på mikrofon' : 'Demp mikrofon'}
+                                    >
+                                        {isMuted ? (
+                                            <MicOff className="w-6 h-6" />
+                                        ) : (
+                                            <Mic className="w-6 h-6" />
+                                        )}
+                                    </Button>
+                                    <Button
+                                        size="lg"
+                                        variant="destructive"
+                                        onClick={endConversation}
+                                        className="rounded-full h-14 w-14"
+                                    >
+                                        <PhoneOff className="w-6 h-6" />
+                                    </Button>
+                                </>
                             ) : (
                                 <Button
                                     size="lg"

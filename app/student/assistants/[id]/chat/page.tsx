@@ -8,6 +8,13 @@ type PageProps = {
     params: Promise<{ id: string }>
 }
 
+type AssistantData = {
+    id: string
+    name: string
+    elevenlabs_agent_id: string
+    avatar_url: string | null
+}
+
 export default async function StudentChatPage({ params }: PageProps) {
     const { id } = await params
     const supabase = await createClient()
@@ -36,15 +43,10 @@ export default async function StudentChatPage({ params }: PageProps) {
         .gt('expires_at', new Date().toISOString())
         .single()
 
-    let assistant: {
-        id: string
-        name: string
-        elevenlabs_agent_id: string
-        avatar_url: string | null
-    } | null = null
+    let assistant: AssistantData | null = null
 
     if (shareAccess?.assistant) {
-        assistant = shareAccess.assistant as unknown as typeof assistant
+        assistant = shareAccess.assistant as unknown as AssistantData
     }
 
     // If no share code access, check via utdanningsprogram
@@ -73,13 +75,15 @@ export default async function StudentChatPage({ params }: PageProps) {
             .single()
 
         if (programAccess?.assistant) {
-            assistant = programAccess.assistant as unknown as typeof assistant
+            assistant = programAccess.assistant as unknown as AssistantData
         }
     }
 
     if (!assistant) {
         redirect('/student')
     }
+
+    const validAssistant = assistant as AssistantData
 
     return (
         <div className="min-h-screen bg-background">
@@ -90,9 +94,9 @@ export default async function StudentChatPage({ params }: PageProps) {
                 </Link>
 
                 <VoiceChat
-                    agentId={assistant.elevenlabs_agent_id}
-                    assistantName={assistant.name}
-                    avatarUrl={assistant.avatar_url}
+                    agentId={validAssistant.elevenlabs_agent_id}
+                    assistantName={validAssistant.name}
+                    avatarUrl={validAssistant.avatar_url}
                 />
             </div>
         </div>

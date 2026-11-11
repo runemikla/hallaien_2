@@ -3,10 +3,20 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { DEFAULT_VOICE, isValidVoice } from '@/lib/gemini/voices'
+
+const INSTRUCTION_MAX_LENGTH = 20000
+
+function validateInstruction(text: string | undefined): string | null {
+    if (!text || !text.trim()) return 'Systeminstruks må fylles ut'
+    if (text.length > INSTRUCTION_MAX_LENGTH) return `Systeminstruksen kan ikke være lengre enn ${INSTRUCTION_MAX_LENGTH} tegn`
+    return null
+}
 
 export type AssistantFormData = {
     name: string
-    elevenlabs_agent_id: string
+    system_instruction: string
+    voice?: string
     description?: string
     avatar_url?: string
     utdanningsprogram_ids?: string[]
@@ -91,12 +101,18 @@ export async function createAssistant(formData: AssistantFormData) {
         return { error: 'Bare lærere kan opprette assistenter' }
     }
 
+    const instructionError = validateInstruction(formData.system_instruction)
+    if (instructionError) {
+        return { error: instructionError }
+    }
+
     const { data, error } = await supabase
         .from('assistants')
         .insert({
             teacher_id: user.id,
             name: formData.name,
-            elevenlabs_agent_id: formData.elevenlabs_agent_id,
+            system_instruction: formData.system_instruction.trim(),
+            voice: isValidVoice(formData.voice) ? formData.voice : DEFAULT_VOICE,
             description: formData.description || null,
             avatar_url: formData.avatar_url || null,
         })
@@ -135,11 +151,17 @@ export async function updateAssistant(id: string, formData: Partial<AssistantFor
         return { error: 'Ikke innlogget' }
     }
 
+    const instructionError = validateInstruction(formData.system_instruction)
+    if (instructionError) {
+        return { error: instructionError }
+    }
+
     const { data, error } = await supabase
         .from('assistants')
         .update({
             name: formData.name,
-            elevenlabs_agent_id: formData.elevenlabs_agent_id,
+            system_instruction: formData.system_instruction!.trim(),
+            voice: isValidVoice(formData.voice) ? formData.voice : DEFAULT_VOICE,
             description: formData.description || null,
             avatar_url: formData.avatar_url || null,
         })

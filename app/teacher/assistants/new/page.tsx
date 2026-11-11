@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { createAssistant, uploadAvatar, getUtdanningsprogram, type AssistantFormData } from '@/app/actions/assistants'
+import { InstructionFields } from '@/components/assistant/instruction-fields'
 import { ArrowLeft, Loader2, Upload, User } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -55,7 +56,7 @@ export default function NewAssistantPage() {
         }
         reader.readAsDataURL(file)
 
-        // Upload to Supabase
+        // Upload avatar
         setIsUploading(true)
         setError(null)
 
@@ -82,7 +83,8 @@ export default function NewAssistantPage() {
         const formData = new FormData(e.currentTarget)
         const data: AssistantFormData = {
             name: formData.get('name') as string,
-            elevenlabs_agent_id: formData.get('elevenlabs_agent_id') as string,
+            system_instruction: formData.get('system_instruction') as string,
+            voice: formData.get('voice') as string || undefined,
             description: formData.get('description') as string || undefined,
             avatar_url: avatarUrl || undefined,
             utdanningsprogram_ids: selectedProgramIds,
@@ -112,7 +114,7 @@ export default function NewAssistantPage() {
                             Ny assistent
                         </CardTitle>
                         <CardDescription>
-                            Registrer en ElevenLabs-agent som en assistent i systemet
+                            Lag en talebasert assistent som elevene kan snakke med
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -171,18 +173,6 @@ export default function NewAssistantPage() {
                                 />
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="elevenlabs_agent_id">ElevenLabs Agent ID *</Label>
-                                <Input
-                                    id="elevenlabs_agent_id"
-                                    name="elevenlabs_agent_id"
-                                    placeholder="F.eks. abc123xyz..."
-                                    required
-                                />
-                                <p className="text-sm text-muted-foreground">
-                                    Du finner Agent ID i ElevenLabs-dashbordet under &quot;Conversational AI&quot;
-                                </p>
-                            </div>
 
                             <div className="space-y-2">
                                 <Label htmlFor="description">Beskrivelse</Label>
@@ -193,6 +183,8 @@ export default function NewAssistantPage() {
                                     rows={3}
                                 />
                             </div>
+
+                            <InstructionFields />
 
                             {/* Utdanningsprogram */}
                             <div className="space-y-3">

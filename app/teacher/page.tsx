@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { requireUser, firstName } from '@/lib/session'
+import { listAssistantsByTeacher } from '@/lib/db'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
@@ -7,31 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Plus, MessageSquare, Share2, Pencil, User } from 'lucide-react'
 
 export default async function TeacherDashboard() {
-    const supabase = await createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        redirect('/auth/login')
-    }
-
-    // Verify user is a teacher
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role, first_name')
-        .eq('id', user.id)
-        .single()
-
-    if (profile?.role !== 'teacher') {
-        redirect('/student')
-    }
-
-    // Get teacher's assistants
-    const { data: assistants } = await supabase
-        .from('assistants')
-        .select('*')
-        .eq('teacher_id', user.id)
-        .order('created_at', { ascending: false })
+    const user = await requireUser('teacher')
+    const assistants = await listAssistantsByTeacher(user.id)
 
     return (
         <div className="min-h-screen bg-background">
@@ -39,7 +16,7 @@ export default async function TeacherDashboard() {
                 <div className="flex items-center justify-between mb-8">
                     <div>
                         <h1 className="text-3xl font-bold font-[family-name:var(--font-roboto-slab)]">
-                            Hei, {profile?.first_name || 'Lærer'}!
+                            Hei, {firstName(user) || 'Lærer'}!
                         </h1>
                         <p className="text-muted-foreground mt-1">
                             Her er dine KI-assistenter:
@@ -53,7 +30,7 @@ export default async function TeacherDashboard() {
                     </Link>
                 </div>
 
-                {assistants && assistants.length > 0 ? (
+                {assistants.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {assistants.map((assistant) => (
                             <Card key={assistant.id} className="hover:shadow-lg transition-shadow flex flex-col h-full">
@@ -66,6 +43,7 @@ export default async function TeacherDashboard() {
                                                     src={assistant.avatar_url}
                                                     alt={assistant.name}
                                                     fill
+                                                    unoptimized
                                                     className="object-cover"
                                                 />
                                             ) : (

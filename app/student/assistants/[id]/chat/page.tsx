@@ -1,9 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { VoiceChat } from '@/components/chat/voice-chat'
-import { getAccessibleAssistant } from '@/lib/assistant-access'
+import { requireUser } from '@/lib/session'
+import { getAccessibleAssistant } from '@/lib/db'
 
 type PageProps = {
     params: Promise<{ id: string }>
@@ -11,17 +11,10 @@ type PageProps = {
 
 export default async function StudentChatPage({ params }: PageProps) {
     const { id } = await params
-    const supabase = await createClient()
+    const user = await requireUser()
 
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        redirect('/auth/login')
-    }
-
-    // Access via share code (time-limited) or utdanningsprogram
-    const assistant = await getAccessibleAssistant(supabase, user.id, id)
-
+    // Access via a share code (time-limited)
+    const assistant = await getAccessibleAssistant(user, id)
     if (!assistant) {
         redirect('/student')
     }

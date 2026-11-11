@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState, useEffect, useRef } from 'react'
-import { useGeminiLive } from '@/lib/gemini/use-gemini-live'
+import { useLiveConversation } from '@/lib/live/use-live-conversation'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -125,7 +125,7 @@ export function VoiceChat({ assistantId, assistantName, avatarUrl }: VoiceChatPr
         setError(message)
     }, [])
 
-    const live = useGeminiLive({
+    const live = useLiveConversation({
         assistantId,
         micMuted: isMuted,
         onTranscript: handleTranscript,
@@ -192,12 +192,13 @@ export function VoiceChat({ assistantId, assistantName, avatarUrl }: VoiceChatPr
                                         className="h-full w-full"
                                     />
                                 ) : (
-                                    <div className="h-full w-full flex items-center justify-center">
+                                    <div className="relative h-full w-full flex items-center justify-center">
                                         {avatarUrl ? (
                                             <Image
                                                 src={avatarUrl}
                                                 alt={assistantName}
                                                 fill
+                                                unoptimized
                                                 className="object-cover"
                                             />
                                         ) : (

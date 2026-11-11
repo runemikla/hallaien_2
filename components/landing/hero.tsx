@@ -23,7 +23,7 @@ export function Hero() {
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
-                    <Link href="/auth/sign-up">
+                    <Link href="/auth/login">
                         <Button size="lg" className="h-12 px-8 text-base rounded-full shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all">
                             Kom i gang
                         </Button>

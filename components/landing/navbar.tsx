@@ -29,10 +29,7 @@ export function Navbar() {
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex items-center gap-6">
                     <Link href="/auth/login">
-                        <Button variant="ghost">Logg inn</Button>
-                    </Link>
-                    <Link href="/auth/sign-up">
-                        <Button>Registrer deg</Button>
+                        <Button>Logg inn</Button>
                     </Link>
                 </div>
 
@@ -51,9 +48,6 @@ export function Navbar() {
                                     <Button variant="outline" className="w-full">
                                         Logg inn
                                     </Button>
-                                </Link>
-                                <Link href="/auth/sign-up" onClick={() => setIsOpen(false)}>
-                                    <Button className="w-full">Registrer deg</Button>
                                 </Link>
                             </div>
                         </SheetContent>

@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hallaien
 
-## Getting Started
+Talebaserte KI-assistenter for skolen. Lærere lager en assistent med navn, beskrivelse,
+systeminstruks og stemme, og deler den med elevene med en kode. Elevene logger inn,
+taster koden og snakker med assistenten.
 
-First, run the development server:
+## Slik er det bygget
+
+| Del | Tjeneste |
+| --- | --- |
+| Nettside | Next.js 16 med egen Node-server (`server.ts`) |
+| Innlogging | Google (Workspace) via Auth.js. `vlfk.no` blir lærer, `iskule.no` blir elev, alle andre avvises |
+| Database | Firestore (`lib/db`). Nettleseren snakker aldri direkte med databasen |
+| Tale | Gemini Live. Lyden går nettleser ⇄ `/api/live` på serveren ⇄ Google |
+
+Talen går via serveren av to grunner: Google-nøklene og lærerens systeminstruks forlater
+aldri serveren, og serveren kan bruke Vertex AI i EU-regionen.
+
+Delekoder er på 6 tegn og varer i 24 timer. Når en elev løser inn en kode, får eleven
+tilgang til assistenten i 24 timer.
+
+## Oppsett i Google Cloud (én gang)
+
+Alt gjøres i ett Google Cloud-prosjekt med fakturering.
+
+1. **Firestore**: Opprett en database i *Native mode* med plassering i EU (f.eks. `eur3`
+   eller `europe-north1`). Sikkerhetsreglene kan stå på «nekt alt», siden bare serveren
+   leser og skriver.
+2. **Vertex AI**: «Agent Platform API» (Vertex AI) må være slått på.
+3. **Tjenestekonto**: Lag en tjenestekonto med rollene *Cloud Datastore User* og
+   *Vertex AI User* (Agent Platform User). Last ned en JSON-nøkkel og legg den på serveren.
+   Nøkkelen skal ikke sjekkes inn i git.
+4. **OAuth-klient**: Under *APIs & Services > Credentials*, lag en *OAuth client ID* av
+   typen *Web application* med redirect-adressen
+   `https://DITT-DOMENE/api/auth/callback/google`
+   (og `http://localhost:3000/api/auth/callback/google` for lokal utvikling).
+   På *OAuth consent screen* kan brukertypen være *External*. Appen slipper uansett bare
+   inn kontoer fra domenene i `TEACHER_DOMAINS` og `STUDENT_DOMAINS`.
+
+## Kjøre appen
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # fyll inn verdiene
+npm install
+npm run dev                  # utvikling, http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Produksjon:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run build
+npm start
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Appen må stå bak en omvendt proxy med HTTPS (Caddy, nginx, Traefik). Proxyen må slippe
+gjennom WebSocket til `/api/live`, og `AUTH_URL` må være den offentlige adressen.
+Mikrofon i nettleseren virker bare over HTTPS (eller på localhost).
 
-## Learn More
+### Lokalt uten Google
 
-To learn more about Next.js, take a look at the following resources:
+Sett `AUTH_DEV_LOGIN=true` for å logge inn ved å skrive en e-postadresse
+(`noe@vlfk.no` gir lærer, `noe@iskule.no` gir elev). Dette er avslått i produksjon.
+Firestore kan kjøres lokalt med emulatoren (`FIRESTORE_EMULATOR_HOST`), og talen kan
+testes med `GEMINI_API_KEY` i stedet for Vertex.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Talemodell og EU
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Standard er `gemini-3.8-live` på Vertex AI med `GOOGLE_CLOUD_LOCATION=eu`. Hvis prosjektet
+ikke har tilgang til den modellen i EU, sett `GEMINI_LIVE_MODEL` til en annen Live-modell
+som er tilgjengelig der.
 
-## Deploy on Vercel
+## Videre arbeid
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Filer som kontekst for assistentene (PDF, Word, tekst). Planen er å lagre filene i
+  Cloud Storage og legge innholdet ved systeminstruksen.
+- Tilgang via utdanningsprogram er tatt ut i denne versjonen. Bare delekoder gir tilgang.

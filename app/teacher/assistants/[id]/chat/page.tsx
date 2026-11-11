@@ -1,8 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { VoiceChat } from '@/components/chat/voice-chat'
+import { requireUser } from '@/lib/session'
+import { getOwnedAssistant } from '@/lib/db'
 
 type PageProps = {
     params: Promise<{ id: string }>
@@ -10,22 +11,9 @@ type PageProps = {
 
 export default async function TeacherChatPage({ params }: PageProps) {
     const { id } = await params
-    const supabase = await createClient()
+    const user = await requireUser('teacher')
 
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        redirect('/auth/login')
-    }
-
-    // Get assistant (only if user owns it)
-    const { data: assistant } = await supabase
-        .from('assistants')
-        .select('*')
-        .eq('id', id)
-        .eq('teacher_id', user.id)
-        .single()
-
+    const assistant = await getOwnedAssistant(user.id, id)
     if (!assistant) {
         redirect('/teacher')
     }
@@ -39,7 +27,7 @@ export default async function TeacherChatPage({ params }: PageProps) {
                 </Link>
 
                 <VoiceChat
-                    agentId={assistant.elevenlabs_agent_id}
+                    assistantId={assistant.id}
                     assistantName={assistant.name}
                     avatarUrl={assistant.avatar_url}
                 />

@@ -1,89 +1,23 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { VoiceChat } from '@/components/chat/voice-chat'
+import { requireUser } from '@/lib/session'
+import { getAccessibleAssistant } from '@/lib/db'
 
 type PageProps = {
     params: Promise<{ id: string }>
 }
 
-type AssistantData = {
-    id: string
-    name: string
-    elevenlabs_agent_id: string
-    avatar_url: string | null
-}
-
 export default async function StudentChatPage({ params }: PageProps) {
     const { id } = await params
-    const supabase = await createClient()
+    const user = await requireUser()
 
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        redirect('/auth/login')
-    }
-
-    // Check access via share code (time-limited)
-    const { data: shareAccess } = await supabase
-        .from('student_access')
-        .select(`
-      id,
-      expires_at,
-      assistant:assistants(
-        id,
-        name,
-        elevenlabs_agent_id,
-        avatar_url
-      )
-    `)
-        .eq('student_id', user.id)
-        .eq('assistant_id', id)
-        .gt('expires_at', new Date().toISOString())
-        .single()
-
-    let assistant: AssistantData | null = null
-
-    if (shareAccess?.assistant) {
-        assistant = shareAccess.assistant as unknown as AssistantData
-    }
-
-    // If no share code access, check via utdanningsprogram
-    if (!assistant) {
-        const { data: programAccess } = await supabase
-            .from('assistant_utdanningsprogram')
-            .select(`
-          utdanningsprogram_id,
-          assistant:assistants(
-            id,
-            name,
-            elevenlabs_agent_id,
-            avatar_url
-          )
-        `)
-            .eq('assistant_id', id)
-            .in(
-                'utdanningsprogram_id',
-                (await supabase
-                    .from('profile_utdanningsprogram')
-                    .select('utdanningsprogram_id')
-                    .eq('profile_id', user.id)
-                ).data?.map(p => p.utdanningsprogram_id) || []
-            )
-            .limit(1)
-            .single()
-
-        if (programAccess?.assistant) {
-            assistant = programAccess.assistant as unknown as AssistantData
-        }
-    }
-
+    // Access via a share code (time-limited)
+    const assistant = await getAccessibleAssistant(user, id)
     if (!assistant) {
         redirect('/student')
     }
-
-    const validAssistant = assistant as AssistantData
 
     return (
         <div className="min-h-screen bg-background">
@@ -94,9 +28,9 @@ export default async function StudentChatPage({ params }: PageProps) {
                 </Link>
 
                 <VoiceChat
-                    agentId={validAssistant.elevenlabs_agent_id}
-                    assistantName={validAssistant.name}
-                    avatarUrl={validAssistant.avatar_url}
+                    assistantId={assistant.id}
+                    assistantName={assistant.name}
+                    avatarUrl={assistant.avatar_url}
                 />
             </div>
         </div>

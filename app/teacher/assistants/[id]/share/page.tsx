@@ -1,8 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { ShareCodeGenerator } from '@/components/dashboard/share-code-generator'
+import { requireUser } from '@/lib/session'
+import { getOwnedAssistant, listActiveShareCodes } from '@/lib/db'
 
 type PageProps = {
     params: Promise<{ id: string }>
@@ -10,33 +11,14 @@ type PageProps = {
 
 export default async function ShareAssistantPage({ params }: PageProps) {
     const { id } = await params
-    const supabase = await createClient()
+    const user = await requireUser('teacher')
 
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        redirect('/auth/login')
-    }
-
-    // Get assistant (only if user owns it)
-    const { data: assistant } = await supabase
-        .from('assistants')
-        .select('*')
-        .eq('id', id)
-        .eq('teacher_id', user.id)
-        .single()
-
+    const assistant = await getOwnedAssistant(user.id, id)
     if (!assistant) {
         redirect('/teacher')
     }
 
-    // Get active share codes
-    const { data: shareCodes } = await supabase
-        .from('share_codes')
-        .select('*')
-        .eq('assistant_id', id)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
+    const shareCodes = await listActiveShareCodes(user.id, id)
 
     return (
         <div className="min-h-screen bg-background">
@@ -47,8 +29,8 @@ export default async function ShareAssistantPage({ params }: PageProps) {
                 </Link>
 
                 <ShareCodeGenerator
-                    assistant={assistant}
-                    existingCodes={shareCodes || []}
+                    assistant={{ id: assistant.id, name: assistant.name }}
+                    existingCodes={shareCodes}
                 />
             </div>
         </div>

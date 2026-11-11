@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState, useEffect, useRef } from 'react'
-import { useConversation } from '@elevenlabs/react'
+import { useLiveConversation } from '@/lib/live/use-live-conversation'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -9,7 +9,7 @@ import { Orb, type AgentState } from '@/components/ui/orb'
 import { User, Phone, PhoneOff, Loader2, Download, Trash2, Mic, MicOff } from 'lucide-react'
 
 type VoiceChatProps = Readonly<{
-    agentId: string
+    assistantId: string
     assistantName: string
     avatarUrl?: string | null
 }>
@@ -19,6 +19,11 @@ type TranscriptEntry = {
     role: 'user' | 'assistant'
     text: string
     timestamp: Date
+    final?: boolean
+}
+
+function escapeHtml(text: string) {
+    return text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
 }
 
 function generatePDF(transcript: TranscriptEntry[], assistantName: string) {
@@ -32,7 +37,7 @@ function generatePDF(transcript: TranscriptEntry[], assistantName: string) {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Samtale med ${assistantName}</title>
+    <title>Samtale med ${escapeHtml(assistantName)}</title>
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px 20px; }
         h1 { color: #333; border-bottom: 2px solid #0d9488; padding-bottom: 10px; }
@@ -47,7 +52,7 @@ function generatePDF(transcript: TranscriptEntry[], assistantName: string) {
     </style>
 </head>
 <body>
-    <h1>Samtale med ${assistantName}</h1>
+    <h1>Samtale med ${escapeHtml(assistantName)}</h1>
     <div class="meta">Generert: ${new Date().toLocaleString('no-NO')}</div>
     ${transcript.map(entry => `
         <div class="entry ${entry.role}">
@@ -55,7 +60,7 @@ function generatePDF(transcript: TranscriptEntry[], assistantName: string) {
                 ${entry.role === 'user' ? 'Elev' : 'Assistent'}
                 <span class="time">${formatTime(entry.timestamp)}</span>
             </div>
-            <div class="text">${entry.text}</div>
+            <div class="text">${escapeHtml(entry.text)}</div>
         </div>
     `).join('')}
 </body>
@@ -78,8 +83,7 @@ function generatePDF(transcript: TranscriptEntry[], assistantName: string) {
     setTimeout(() => URL.revokeObjectURL(url), 60000)
 }
 
-export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps) {
-    const [isConnecting, setIsConnecting] = useState(false)
+export function VoiceChat({ assistantId, assistantName, avatarUrl }: VoiceChatProps) {
     const [error, setError] = useState<string | null>(null)
     const [transcript, setTranscript] = useState<TranscriptEntry[]>([])
     const [isMuted, setIsMuted] = useState(false)
@@ -92,128 +96,52 @@ export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps)
         }
     }, [transcript])
 
-    const addTranscriptEntry = useCallback((role: 'user' | 'assistant', text: string) => {
-        if (!text.trim()) return
-        setTranscript(prev => [...prev, {
-            id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-            role,
-            text: text.trim(),
-            timestamp: new Date()
-        }])
+    // Gemini streams transcription in small pieces: append to the open entry
+    // for the same speaker, or start a new one when the speaker changes.
+    const handleTranscript = useCallback((role: 'user' | 'assistant', text: string, final: boolean) => {
+        setTranscript(prev => {
+            const last = prev[prev.length - 1]
+            if (final) {
+                if (last && !last.final) {
+                    return [...prev.slice(0, -1), { ...last, final: true }]
+                }
+                return prev
+            }
+            if (!text) return prev
+            if (last && last.role === role && !last.final) {
+                return [...prev.slice(0, -1), { ...last, text: last.text + text }]
+            }
+            const closed = last && !last.final ? [...prev.slice(0, -1), { ...last, final: true }] : prev
+            return [...closed, {
+                id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+                role,
+                text,
+                timestamp: new Date(),
+            }]
+        })
     }, [])
 
-    const conversation = useConversation({
+    const handleError = useCallback((message: string) => {
+        setError(message)
+    }, [])
+
+    const live = useLiveConversation({
+        assistantId,
         micMuted: isMuted,
-        onConnect: () => {
-            console.log('Connected to ElevenLabs')
-            setIsConnecting(false)
-            setIsMuted(false)
-            setTranscript([]) // Clear transcript on new conversation
-        },
-        onDisconnect: () => {
-            console.log('Disconnected from ElevenLabs')
-        },
-        onError: (error) => {
-            console.error('ElevenLabs error:', error)
-            setError(typeof error === 'string' ? error : 'En feil oppstod')
-            setIsConnecting(false)
-        },
-        onMessage: (message) => {
-            console.log('Message received:', JSON.stringify(message, null, 2))
-
-            // Handle different message types from ElevenLabs WebSocket
-            const msg = message as {
-                type?: string
-                source?: string
-                role?: string
-                user_transcript?: string
-                user_transcription?: string
-                agent_response?: string
-                message?: string
-                transcript?: string
-                text?: string
-            }
-
-            console.log('Message type:', msg.type, 'Source:', msg.source, 'Role:', msg.role)
-
-            // Get the text content from various possible fields
-            const text = msg.user_transcript || msg.user_transcription || msg.agent_response || msg.message || msg.transcript || msg.text || ''
-
-            if (!text.trim()) return
-
-            // Determine if this is a user or assistant message
-            let isUser = false
-
-            // Check by type
-            if (msg.type === 'user_transcript' || msg.type === 'user_transcription') {
-                isUser = true
-            } else if (msg.type !== 'agent_response') {
-                // Check by source field
-                if (msg.source === 'user') {
-                    isUser = true
-                } else if (msg.source !== 'agent' && msg.source !== 'assistant') {
-                    // Check by role field
-                    if (msg.role === 'user') {
-                        isUser = true
-                    } else if (msg.role !== 'assistant' && msg.role !== 'agent') {
-                        // Check which field had the content
-                        if (msg.user_transcript || msg.user_transcription) {
-                            isUser = true
-                        }
-                        // Default: isUser remains false for unidentified messages
-                    }
-                }
-            }
-
-            console.log('Adding transcript as:', isUser ? 'USER' : 'ASSISTANT', '- Text:', text.substring(0, 50))
-            addTranscriptEntry(isUser ? 'user' : 'assistant', text)
-        },
+        onTranscript: handleTranscript,
+        onError: handleError,
     })
 
-    // Update transcript ref when transcript changes for onDisconnect
-    useEffect(() => {
-        // This effect ensures the disconnect handler has access to latest transcript
-    }, [transcript, agentId, assistantName])
-
     const startConversation = useCallback(async () => {
-        setIsConnecting(true)
         setError(null)
+        setIsMuted(false)
+        setTranscript([])
+        await live.start()
+    }, [live])
 
-        try {
-            // Request microphone permission
-            await navigator.mediaDevices.getUserMedia({ audio: true })
-
-            // Get signed URL from our API
-            console.log('Fetching signed URL for agent:', agentId)
-            const response = await fetch('/api/elevenlabs/signed-url', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ agentId }),
-            })
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}))
-                console.error('Signed URL error:', errorData)
-                throw new Error(errorData.error || 'Kunne ikke starte samtale')
-            }
-
-            const { signedUrl } = await response.json()
-            console.log('Got signed URL:', signedUrl ? 'yes' : 'no')
-
-            // Start conversation with signed URL
-            await conversation.startSession({
-                signedUrl,
-            })
-        } catch (err) {
-            console.error('Voice chat error:', err)
-            setError(err instanceof Error ? err.message : 'En feil oppstod')
-            setIsConnecting(false)
-        }
-    }, [agentId, conversation])
-
-    const endConversation = useCallback(async () => {
-        await conversation.endSession()
-    }, [conversation])
+    const endConversation = useCallback(() => {
+        live.stop()
+    }, [live])
 
     const toggleMute = useCallback(() => {
         setIsMuted(prev => !prev)
@@ -221,15 +149,16 @@ export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps)
 
     const handleDownloadPDF = useCallback(() => {
         if (transcript.length === 0) return
-        generatePDF(transcript, assistantName)
+        generatePDF(transcript.map(e => ({ ...e, text: e.text.trim() })), assistantName)
     }, [transcript, assistantName])
 
     const clearTranscript = useCallback(() => {
         setTranscript([])
     }, [])
 
-    const isConnected = conversation.status === 'connected'
-    const isSpeaking = conversation.isSpeaking
+    const isConnecting = live.status === 'connecting'
+    const isConnected = live.status === 'connected'
+    const isSpeaking = live.isSpeaking
 
     // Map conversation state to AgentState for Orb
     const getAgentState = (): AgentState => {
@@ -238,15 +167,9 @@ export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps)
         return "listening"
     }
 
-    // Get audio volume levels from conversation for Orb reactivity
-    // These functions are called on every animation frame by the Orb component
-    const getInputVolume = () => {
-        return conversation.getInputVolume?.() ?? 0
-    }
-
-    const getOutputVolume = () => {
-        return conversation.getOutputVolume?.() ?? 0
-    }
+    // Called on every animation frame by the Orb component
+    const getInputVolume = live.getInputVolume
+    const getOutputVolume = live.getOutputVolume
 
     return (
         <div className="space-y-4">
@@ -269,12 +192,13 @@ export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps)
                                         className="h-full w-full"
                                     />
                                 ) : (
-                                    <div className="h-full w-full flex items-center justify-center">
+                                    <div className="relative h-full w-full flex items-center justify-center">
                                         {avatarUrl ? (
                                             <Image
                                                 src={avatarUrl}
                                                 alt={assistantName}
                                                 fill
+                                                unoptimized
                                                 className="object-cover"
                                             />
                                         ) : (
@@ -407,7 +331,7 @@ export function VoiceChat({ agentId, assistantName, avatarUrl }: VoiceChatProps)
                                             })}
                                         </span>
                                     </div>
-                                    <p className="text-sm text-muted-foreground">{entry.text}</p>
+                                    <p className="text-sm text-muted-foreground">{entry.text.trim()}</p>
                                 </div>
                             ))}
                         </div>

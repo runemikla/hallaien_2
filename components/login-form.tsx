@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
+import { signIn } from 'next-auth/react'
 import { cn } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -12,36 +13,23 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
 
-export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
+type LoginFormProps = React.ComponentPropsWithoutRef<'div'> & { devLogin?: boolean }
+
+export function LoginForm({ className, devLogin = false, ...props }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const [devEmail, setDevEmail] = useState('')
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const supabase = createClient()
+  const handleGoogle = async () => {
     setIsLoading(true)
-    setError(null)
+    await signIn('google', { redirectTo: '/dashboard' })
+  }
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (error) throw error
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push('/dashboard')
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'An error occurred')
-    } finally {
-      setIsLoading(false)
-    }
+  const handleDev = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    await signIn('dev', { email: devEmail, redirectTo: '/dashboard' })
+    setIsLoading(false)
   }
 
   return (
@@ -49,52 +37,31 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-[family-name:var(--font-roboto-slab)]">Logg inn</CardTitle>
-          <CardDescription>Skriv inn e-posten din for å logge inn</CardDescription>
+          <CardDescription>
+            Bruk skolekontoen din. Lærere logger inn med vlfk.no og elever med iskule.no.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin}>
-            <div className="flex flex-col gap-6">
-              <div className="grid gap-2">
-                <Label htmlFor="email">E-post</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="m@example.com"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Passord</Label>
-                  <Link
-                    href="/auth/forgot-password"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                  >
-                    Glemt passord?
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Logger inn...' : 'Logg inn'}
+        <CardContent className="flex flex-col gap-6">
+          <Button onClick={handleGoogle} className="w-full" disabled={isLoading}>
+            {isLoading ? 'Logger inn...' : 'Logg inn med Google'}
+          </Button>
+
+          {devLogin && (
+            <form onSubmit={handleDev} className="flex flex-col gap-3 border-t pt-6">
+              <Label htmlFor="dev-email">Utviklerinnlogging (kun lokalt)</Label>
+              <Input
+                id="dev-email"
+                type="email"
+                placeholder="test@vlfk.no eller test@iskule.no"
+                required
+                value={devEmail}
+                onChange={(e) => setDevEmail(e.target.value)}
+              />
+              <Button type="submit" variant="outline" disabled={isLoading}>
+                Logg inn uten Google
               </Button>
-            </div>
-            <div className="mt-4 text-center text-sm">
-              Har du ikke en konto?{' '}
-              <Link href="/auth/sign-up" className="underline underline-offset-4">
-                Registrer deg
-              </Link>
-            </div>
-          </form>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>
